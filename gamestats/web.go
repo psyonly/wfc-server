@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"wwfc/common"
+	"wwfc/gamestats/gts"
 	"wwfc/logging"
 
 	"github.com/logrusorgru/aurora/v3"
@@ -66,6 +67,18 @@ func HandleWebRequest(w http.ResponseWriter, r *http.Request) {
 
 		if hash != expectedHash {
 			logging.Warn(moduleName, "Invalid hash")
+		}
+
+		// 第四世代宝可梦的 GTS / 对战塔走 /pokemondpds/ 前缀，这些是 DS 游戏：
+		// 响应必须是裸二进制，既不能加 13 字节的 DWC padding，也不能追加
+		// sha1 尾部哈希，所以单独处理并直接返回。
+		if gts.IsPokemonGameStatsPath(gameName) {
+			// 成功时 gts 包已经把裸二进制响应写好了；失败时它什么都没写，
+			// 由这里统一回错误页，避免同一个请求写两次响应。
+			if httpErr := gts.HandlePokemonGameStats(w, subPath, query, token, moduleName); httpErr != nil {
+				replyHTTPError(w, httpErr.Status, httpErr.Text)
+			}
+			return
 		}
 
 		switch subPath {
